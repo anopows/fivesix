@@ -1,4 +1,4 @@
-> Version 2.1 public-launch implementation: account and moderation code is available locally. This is not evidence of a completed production launch. Release gates and deviations are recorded in `deploy/PUBLIC_LAUNCH.md` and `deploy/IMPLEMENTATION_DECISIONS.md`.
+> Version 2.1 public-launch implementation: account and moderation code is merged on main; production currently runs the compatible 1.2 foundations. This is not evidence of a completed production launch. Release gates and deviations are recorded in `deploy/PUBLIC_LAUNCH.md` and `deploy/IMPLEMENTATION_DECISIONS.md`.
 
 # five·six — dance videos with counts and slow motion
 

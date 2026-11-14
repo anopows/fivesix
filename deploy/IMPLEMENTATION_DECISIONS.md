@@ -10,7 +10,7 @@ The complete 14 November 2026 Claude design is the implementation baseline. Thes
 
 ## Verification and release status
 
-Changes are local. GitHub publication was rejected by automatic approval review because the request was not considered specific authorization for external source publication. No push, merge, or production deployment has occurred.
+The user explicitly authorized publication, merges, encrypted Mac backups and deployment. Both tested PRs are merged; the compatible five·six 1.2 and Songfinder 0.3 foundations are deployed. The full 2.1 implementation remains gated. See PUBLIC_LAUNCH.md and RUNBOOK.md for evidence and remaining inputs.
 
 The existing production host was checked read-only: 4 vCPU, about 8 GB RAM, 80 GB disk. It does not meet the design M3 requirement (6 vCPU, 16 GB RAM, 160 GB disk). Existing service health remained green at the check.
 

@@ -85,11 +85,11 @@ Legal pages are read from `CHOREO_LEGAL_DIR`; all three must be complete and the
 
 For nightly backups install `age` and `rclone`, a bucket-scoped `/etc/choreo-backup.conf` (remote `backups`), and `/etc/choreo-backup.env` with `AGE_RECIPIENT` and `HC_BACKUP_URL`. Keep these files mode 0600 owned by choreo. Enable `choreo-backup.timer` for 03:40 UTC. Keep the private age key off the host. Restore quarterly on a separate machine and record the integrity and API checks.
 
-Local foundation acceptance tests passed. Production rollout has not occurred: GitHub publication/CI, backup credentials, monitoring endpoints and the restore/alert drills remain launch gates. The inspected host has 4 vCPU, 8 GB RAM and an 80 GB disk; M3 requires the design's larger host. Existing services were healthy during the read-only check.
+Local foundation acceptance tests passed. The initial local-only assessment was superseded by the staged rollout recorded below. Recurring backup credentials and monitoring/alert drills remain gates. The inspected host has 4 vCPU, 8 GB RAM and an 80 GB disk; M3 requires the design's larger host. Existing services were healthy during the read-only check.
 
 ## Public-launch implementation, 14 November 2026
 
-See PUBLIC_LAUNCH.md for the authoritative new release procedure and IMPLEMENTATION_DECISIONS.md for security corrections to the handover. These additions supersede old shared-room login instructions for version 2.x. All new work remains local; production still runs its prior release. Host upgrade, model calibration, owner legal/provider inputs, backup restore drill, remote CI and the 14-day soft launch are not yet evidenced.
+See PUBLIC_LAUNCH.md for the authoritative new release procedure and IMPLEMENTATION_DECISIONS.md for security corrections to the handover. These additions supersede old shared-room login instructions for version 2.x. The 2.1 implementation is merged; production currently runs the compatible 1.2 foundations. Host upgrade, model calibration, owner legal/provider inputs, recurring R2 backup/alert drills and the 14-day soft launch are not yet evidenced.
 
 
 ### Recorded local verification
@@ -98,4 +98,18 @@ On 14 November 2026, `uv run --frozen --extra dev --with 'scipy>=1.14,<2' pytest
 
 Both timing benchmark suites passed all 12 cases (development seed 60117 and validation seed 841903). Hash-verified real screening models loaded locally and rejected a generated 10-second colour-bar/tone clip with `no_person` in 7.258 seconds (10 sampled frames, zero nudity flags, zero person detections). This is a negative smoke result, not a dance-video calibration or a production performance result.
 
-Chrome verification against an isolated local test server completed email request, captured-mail confirmation, private library, quota display and admin password step-up. The confirmation fragment was removed before submission; the browser reported no console errors. Test storage, test Turnstile and captured email were used. Real Google/SMTP delivery, Linux sandbox execution, 30-clip model calibration and production upload/playback remain explicit release gates.
+Chrome verification against an isolated local test server completed email request, captured-mail confirmation, private library, quota display and admin password step-up. The confirmation fragment was removed before submission; the browser reported no console errors. Test storage, test Turnstile and captured email were used. Real Google/SMTP delivery, 30-clip model calibration and a new authenticated production upload remain release gates. Linux isolation and existing production playback were subsequently verified below.
+
+## Verified staged rollout
+
+On 14 November 2026 the tested release branches and PRs were published and merged. CI passed on the release heads, PRs, both default-branch merge commits and the exact M1 foundation revision. Production runs five·six 1.2.0 at 39a68e43b1b08e726ac2d13ef7b118cf6134dcb0 and Songfinder 0.3.0 at eb8788723e489e7be1b5088a64b0fac71f6c14a6. The 2.1 account/screening/moderation implementation is on main but is not deployed. Existing password-protected uploads and unlisted links are preserved; public account sign-ups are not open.
+
+Before deployment, online snapshots of the room, R2 guard and Songfinder databases were encrypted with age in memory and transferred to the operator's Mac. The private identity stayed off-host. All three passed off-host decryption, integrity and table-count checks. Isolated local APIs then served all four restored practice records and all 28 restored Songfinder results with authentication boundaries intact; temporary decrypted files were removed. This verifies the manual Mac recovery path, not the unconfigured R2 backup destination.
+
+After deployment, both HTTPS health endpoints and home pages passed. Four existing five·six links each passed an HTTP byte-range playback check; anonymous library access returned 401. Songfinder's example result passed, 28 jobs remained, and unfinished legal templates stayed unavailable. Five·six's Linux sandbox passed filesystem and network-isolation checks. All existing API/worker/Caddy services remained active. Production five·six remains at schema version 0; no account migration or monthly-guard migration ran.
+
+age/rclone, backup/health units and the public age recipient are installed. All four new timers remain disabled: the separate site-backups R2 bucket/tokens and four external monitoring endpoints are still missing. A signed-in Cloudflare check confirmed only the existing media bucket is present. The private recovery identity is not stored on the VPS or in either repository.
+
+M1 code is deployed, but its recurring-backup/alert gate remains incomplete. M2 needs real SMTP/Google/admin settings. M3 needs the larger host, budget setup and real-dance calibration. Final legal content/reporting procedures and the 14-day soft launch remain later gates. Do not interpret a green health endpoint as completion of those gates.
+
+CI evidence: https://github.com/anopows/fivesix/actions/runs/43621025426 (release and exact M1 revision), https://github.com/anopows/fivesix/actions/runs/43621624829 (merged main), https://github.com/anopows/songfinder/actions/runs/43621608963 (merged main).

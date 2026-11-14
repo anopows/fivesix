@@ -1,8 +1,17 @@
 # Public-launch release and recovery
 
-## Local completion versus release
+## Release status
 
-M0 baseline, M1 foundations, M2 accounts and M3 screening/moderation/cost implementation are separate local commits/branches. No branch has been pushed or merged and no production service has been changed. Automatic approval review rejected remote source publication. Existing unrelated working files were preserved.
+On 14 November 2026 the tested release branches and PRs were published and merged. CI passed on the release heads, PRs, both default-branch merge commits and the exact M1 foundation revision. Production runs five·six 1.2.0 at 39a68e43b1b08e726ac2d13ef7b118cf6134dcb0 and Songfinder 0.3.0 at eb8788723e489e7be1b5088a64b0fac71f6c14a6. The 2.1 account/screening/moderation implementation is on main but is not deployed. Existing password-protected uploads and unlisted links are preserved; public account sign-ups are not open.
+
+Before deployment, online snapshots of the room, R2 guard and Songfinder databases were encrypted with age in memory and transferred to the operator's Mac. The private identity stayed off-host. All three passed off-host decryption, integrity and table-count checks. Isolated local APIs then served all four restored practice records and all 28 restored Songfinder results with authentication boundaries intact; temporary decrypted files were removed. This verifies the manual Mac recovery path, not the unconfigured R2 backup destination.
+
+After deployment, both HTTPS health endpoints and home pages passed. Four existing five·six links each passed an HTTP byte-range playback check; anonymous library access returned 401. Songfinder's example result passed, 28 jobs remained, and unfinished legal templates stayed unavailable. Five·six's Linux sandbox passed filesystem and network-isolation checks. All existing API/worker/Caddy services remained active. Production five·six remains at schema version 0; no account migration or monthly-guard migration ran.
+
+age/rclone, backup/health units and the public age recipient are installed. All four new timers remain disabled: the separate site-backups R2 bucket/tokens and four external monitoring endpoints are still missing. A signed-in Cloudflare check confirmed only the existing media bucket is present. The private recovery identity is not stored on the VPS or in either repository.
+
+M1 code is deployed, but its recurring-backup/alert gate remains incomplete. M2 needs real SMTP/Google/admin settings. M3 needs the larger host, budget setup and real-dance calibration. Final legal content/reporting procedures and the 14-day soft launch remain later gates. Do not interpret a green health endpoint as completion of those gates.
+
 
 The verified host is still 4 vCPU, approximately 8 GB RAM, 80 GB disk. It fails the M3 host gate. Do not infer provider credentials, legal approval, backup recoverability or screening calibration from passing local tests.
 
