@@ -139,13 +139,15 @@ def test_media_is_local_signed_range_capable_and_revocable(guarded_app):
         store.url(key, 900)
 
 
-def test_webhook_auth_scope_test_and_duplicate_delivery(guarded_app):
+def test_webhook_auth_scope_test_and_duplicate_delivery(guarded_app,caplog):
     client, store, key = guarded_app
     payload = {'policy_id': 'policy', 'account_id': 'account', 'alert_type': 'billing_budget_alert'}
     path = '/hooks/cloudflare-budget'
     assert client.post(path, json=payload).status_code == 403
     headers = {'cf-webhook-auth': 'webhook-secret'}
     assert client.post(path, json={**payload, 'policy_id': 'other'}, headers=headers).status_code == 400
+    assert 'policy_match=False account_match=True type_match=True' in caplog.text
+    assert 'webhook-secret' not in caplog.text and 'other' not in caplog.text
     message = 'Hello World! This is a test message sent from https://cloudflare.com. If you can see this, your webhook is configured properly.'
     assert client.post(path, json={'text': message}, headers=headers).json()['test']
     assert client.post(path, json={'text': message.replace('properly.', 'correctly.')}, headers=headers).json()['test']

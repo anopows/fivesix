@@ -312,8 +312,12 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
         if (not cfg.r2_budget_policy_id or payload.get('policy_id') != cfg.r2_budget_policy_id
                 or payload.get('account_id') != cfg.r2_account_id
                 or payload.get('alert_type') != 'billing_budget_alert'):
-            logging.getLogger(__name__).warning('Rejected budget webhook: fields=%s type=%r text=%r',
-                sorted(payload), payload.get('alert_type'), str(payload.get('text', ''))[:300])
+            # Report only match outcomes, never secrets or raw payloads. This
+            # identifies which configured fields differ without logging their values.
+            logging.getLogger(__name__).warning('Rejected budget webhook: policy_match=%s account_match=%s type_match=%s',
+                bool(cfg.r2_budget_policy_id) and payload.get('policy_id') == cfg.r2_budget_policy_id,
+                bool(cfg.r2_account_id) and payload.get('account_id') == cfg.r2_account_id,
+                payload.get('alert_type') == 'billing_budget_alert')
             raise HTTPException(400, 'Unexpected alert')
         if payload.get('alert_event') == 'ALERT_STATE_EVENT_END':
             return {'ok': True, 'ignored': True}
