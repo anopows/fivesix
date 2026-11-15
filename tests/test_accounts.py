@@ -97,7 +97,7 @@ def test_google_claim_contract(room):
     _,_,cfg,*_=room;cfg.google_client_id='client'
     good={'sub':'stable-id','nonce':'nonce','email':'user@gmail.com','email_verified':True,'aud':'client','iss':'https://accounts.google.com','iat':time.time(),'exp':time.time()+300}
     assert valid_claims(good,cfg,'nonce')
-    for key,value in [('aud','other'),('nonce','wrong'),('email_verified','true'),('iss','evil'),('exp',0),('iat',time.time()+1000),('sub','')]:
+    for key,value in [('aud','other'),('azp','other'),('nonce','wrong'),('email_verified','true'),('iss','evil'),('exp',0),('iat',time.time()+1000),('sub','')]:
         assert not valid_claims({**good,key:value},cfg,'nonce')
     assert not valid_claims({**good,'aud':['client','other']},cfg,'nonce')
 
