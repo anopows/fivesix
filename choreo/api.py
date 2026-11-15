@@ -309,16 +309,22 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
         probe_prefix = 'Hello World! This is a test message sent from https://cloudflare.com. If you can see this, your webhook is configured '
         if set(payload) == {'text'} and payload['text'] in {probe_prefix+'properly.', probe_prefix+'correctly.'}:
             return {'ok': True, 'test': True}
-        if (not cfg.r2_budget_policy_id or payload.get('policy_id') != cfg.r2_budget_policy_id
-                or payload.get('account_id') != cfg.r2_account_id
-                or payload.get('alert_type') != 'billing_budget_alert'):
-            # Report only match outcomes, never secrets or raw payloads. This
-            # identifies which configured fields differ without logging their values.
+        policy_matches = bool(cfg.r2_budget_policy_id) and payload.get('policy_id') == cfg.r2_budget_policy_id
+        account_matches = bool(cfg.r2_account_id) and payload.get('account_id') == cfg.r2_account_id
+        type_matches = payload.get('alert_type') == 'billing_budget_alert'
+        if not policy_matches or not type_matches:
+            # Never log credentials, raw payloads, or account identifiers.
             logging.getLogger(__name__).warning('Rejected budget webhook: policy_match=%s account_match=%s type_match=%s',
-                bool(cfg.r2_budget_policy_id) and payload.get('policy_id') == cfg.r2_budget_policy_id,
-                bool(cfg.r2_account_id) and payload.get('account_id') == cfg.r2_account_id,
-                payload.get('alert_type') == 'billing_budget_alert')
+                policy_matches, account_matches, type_matches)
             raise HTTPException(400, 'Unexpected alert')
+        if not account_matches:
+            # The secret and policy identify this destination. Cloudflare's
+            # policy test uses sample account data, and malformed live alerts
+            # must not silently defeat the cost stop. Fail closed, including
+            # for an inconsistent end event; a human must review before resume.
+            logging.getLogger(__name__).warning('Budget alert account mismatch; storage safeguard stopped')
+            store.guard.stop('Cloudflare budget alert account mismatch; review before resuming')
+            return {'ok': True, 'stopped': True, 'account_mismatch': True}
         if payload.get('alert_event') == 'ALERT_STATE_EVENT_END':
             return {'ok': True, 'ignored': True}
         store.guard.stop('Cloudflare account budget alert')

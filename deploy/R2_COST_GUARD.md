@@ -6,7 +6,7 @@ Before starting version 2.1 on an existing installation, stop API and worker, ba
 
 Upload admission checks source-byte reservations at 90% of the storage cap. The worker inventories deterministic object keys and reserves the derived total before uploading; partial failures remain conservatively counted until cleanup or retry. Each project is limited to 50 GB of requested media per UTC day; HEAD does not consume this allowance. A request that would exceed the remaining amount is refused before its body is fetched. Originals are removed after analysis and retried by cleanup when deletion fails.
 
-Keep the account budget alert at $60, with matching account and policy IDs and the secret webhook. Scope runtime R2 credentials to this bucket and the host IPs. Backups use separate bucket-scoped credentials and the 30-day backup lifecycle. Verify provider prices and included host traffic at deployment; R2 free egress does not remove the host's traffic limits.
+Keep the account budget alert at $60, with the configured account and policy IDs and the secret webhook. Scope runtime R2 credentials to this bucket and the host IPs. Backups use separate bucket-scoped credentials and the 30-day backup lifecycle. Verify provider prices and included host traffic at deployment; R2 free egress does not remove the host's traffic limits.
 
 ## Historical setup and provider configuration
 
@@ -66,8 +66,12 @@ Price reference: https://developers.cloudflare.com/r2/pricing/
 Configure `CHOREO_R2_WEBHOOK_SECRET`, `CHOREO_R2_ACCOUNT_ID`, and
 `CHOREO_R2_BUDGET_POLICY_ID`. Point a Cloudflare generic webhook at
 `https://YOUR_HOST/hooks/cloudflare-budget`, using that secret. A matching
-`cf-webhook-auth` header, account ID, policy ID, and `billing_budget_alert` type
-are required. The expected budget policy sets the latch; duplicates are
+`cf-webhook-auth` header, policy ID, and `billing_budget_alert` type are required.
+An inconsistent or missing account ID also sets the latch for review instead of
+discarding an authenticated alert; a mismatched end event fails closed too. The
+Cloudflare policy test uses sample data and will stop live storage: review the
+actual bill and latch reason before `resume --reviewed`. The expected policy sets
+the latch; duplicates are
 idempotent. End events cannot resume service. Cloudflare destination-test messages
 are acknowledged without stopping access. Ordinary API rate limits do not block
 the webhook during a traffic spike. The endpoint has no resume capability.
