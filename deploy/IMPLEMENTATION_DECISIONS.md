@@ -10,9 +10,9 @@ The complete 14 November 2026 Claude design is the implementation baseline. Thes
 
 ## Verification and release status
 
-The user explicitly authorized publication, merges, encrypted Mac backups and deployment. The tested implementation PRs are merged. The verified five·six 2.0.2 accounts release is deployed from `launch/m2`; Songfinder retains its 0.3 foundation release marker. The full 2.1 implementation remains gated. See PUBLIC_LAUNCH.md and RUNBOOK.md for evidence and remaining inputs.
+The user explicitly authorized publication, merges, encrypted Mac backups and deployment. The tested implementation PRs are merged. The verified five·six 2.1.0 screening/moderation release and subsequent webhook diagnostics are deployed; Songfinder retains its 0.3 foundation release marker. Public signup and uploads remain gated. See PUBLIC_LAUNCH.md and RUNBOOK.md for evidence and remaining inputs.
 
-The existing production host was checked read-only: 4 vCPU, about 8 GB RAM, 80 GB disk. The original size prerequisite was superseded by the owner after a measured capacity review; production calibration remains required, and the design’s seven-day queue-wait trigger controls reconsideration of additional capacity. Existing service health remained green at the check.
+The existing production host was checked read-only: 4 vCPU, about 8 GB RAM, 80 GB disk. The original size prerequisite was superseded by the owner after a measured capacity review; production calibration passed with the recorded scheduling caveat, and the design’s seven-day queue-wait trigger controls reconsideration of additional capacity. Existing service health remained green at the check.
 
 - Per-video egress checks the proposed total, rather than permitting one request to overshoot. Stored-byte admission includes the incoming reservation, and derived-file totals are reserved before upload so partial work cannot bypass the hard cap.
 - Removal notices say files are queued for deletion, matching asynchronous cleanup. The original design's immediate-deletion wording was inaccurate.
