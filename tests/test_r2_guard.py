@@ -163,6 +163,29 @@ def test_webhook_auth_scope_test_and_duplicate_delivery(guarded_app,caplog):
     assert store.guard.status()['stopped_at'] == stamp
 
 
+@pytest.mark.parametrize('account,event', [('sample-account', None), (None, None), ('sample-account', 'ALERT_STATE_EVENT_END')])
+def test_authenticated_configured_budget_alert_with_account_mismatch_fails_closed(guarded_app, caplog, account, event):
+    client, store, _ = guarded_app
+    payload = {'policy_id': 'policy', 'alert_type': 'billing_budget_alert'}
+    if account is not None:
+        payload['account_id'] = account
+    if event is not None:
+        payload['alert_event'] = event
+    headers = {'cf-webhook-auth': 'webhook-secret'}
+    # Authentication, policy and alert type stay mandatory before the stop.
+    assert client.post('/hooks/cloudflare-budget', json=payload).status_code == 403
+    assert client.post('/hooks/cloudflare-budget', json={**payload, 'policy_id': 'other'}, headers=headers).status_code == 400
+    assert client.post('/hooks/cloudflare-budget', json={**payload, 'alert_type': 'other'}, headers=headers).status_code == 400
+    assert not store.guard.status()['stopped']
+    result = client.post('/hooks/cloudflare-budget', json=payload, headers=headers)
+    assert result.status_code == 200 and result.json() == {'ok': True, 'stopped': True, 'account_mismatch': True}
+    assert 'account mismatch' in store.guard.status()['stopped']
+    assert 'sample-account' not in caplog.text and 'webhook-secret' not in caplog.text
+    stamp = store.guard.status()['stopped_at']
+    assert client.post('/hooks/cloudflare-budget', json=payload, headers=headers).status_code == 200
+    assert store.guard.status()['stopped_at'] == stamp
+
+
 def test_media_allowance_latches_before_download(guarded_app):
     client, store, key = guarded_app
     store.guard.reserve(media_bytes=95)
