@@ -88,20 +88,26 @@ def analyze(folder, models):
     from demucs.pretrained import get_model
     from demucs.apply import apply_model
     demucs = get_model("htdemucs_6s").cpu().eval()
+    acoustic = {"mix":stereo.mean(axis=1)}
     tensor = torch.from_numpy(stereo.T.copy())
+    # Memory scales with video length from here on. Release each full-length
+    # buffer as soon as its last reader is done. A 10-minute video previously
+    # exceeded the worker's 6 GB limit.
+    del stereo
     ref = tensor.mean(0)
     mean, std = ref.mean(), ref.std()
     with torch.inference_mode():
         separated = apply_model(demucs, ((tensor-mean)/(std+1e-8))[None],
                                 device="cpu", shifts=0, split=True, overlap=.25, progress=False)[0]
-    separated = separated*std+mean
+        # In place: same arithmetic as separated*std+mean without a second
+        # full copy of all six stems.
+        separated.mul_(std).add_(mean)
     names = list(demucs.sources)
-    del demucs, tensor
+    del demucs, tensor, ref
     gc.collect()
     stage(folder, "Aligning counts to acoustic attacks")
     rms = float(np.sqrt(np.mean(y*y)))
     lanes = {}
-    acoustic = {"mix":stereo.mean(axis=1)}
     for name, (low, high) in {"low": (45,300), "mid": (250,2500), "high": (2500,9500)}.items():
         filtered = sosfiltfilt(butter(3, [low, high], btype="bandpass", fs=22050, output="sos"), y)
         lanes[name] = f["attacks"](filtered, rms, name)
@@ -118,6 +124,9 @@ def analyze(folder, models):
         sf.write(folder/"stem.wav", pcm*min(1, .98/max(peak, 1e-8)), 44100, subtype="PCM_16")
         solo_video(folder/"practice.mp4", folder/"stem.wav", folder/f"{name}.mp4", duration)
         (folder/"stem.wav").unlink()
+    # The mono copies in `acoustic` are all that timing needs from the stems.
+    del separated, pcm, mono, samples, filtered
+    gc.collect()
     arrays = feature_cache(acoustic, folder/"acoustic-cache", lambda text:stage(folder,text))
     events, timing_quality = select_clock(acoustic, arrays, pulse_slots(grid, beats, duration), duration,
                                            lambda text:stage(folder,text), onsets=lanes)
