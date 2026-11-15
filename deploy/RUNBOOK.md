@@ -1,5 +1,17 @@
 # Operations
 
+## Public beta opened — 15 November 2026
+
+**Current state:** Five·Six registration and uploads opened at 21:33:29 UTC with a 100-account cap. Both services' Terms, Privacy and Legal/Contact pages are public. Runtime revision remains `e48f141a8a4407105c8dbb9bc2dbd70abda58b7b`; this was an operator-configuration rollout, not an application-code change. All four existing practice links and byte-range playback passed, private-library access stayed 401, and both public health endpoints passed.
+
+The owner explicitly declined hiring a lawyer and authorized a best-effort launch. That supersedes the professional-review gate in the historical record below. No legal-compliance guarantee is made and the Hetzner DPA has not been accepted on the owner's behalf. No residential address was published or host upgrade purchased. See [BETA_OPERATIONS.md](BETA_OPERATIONS.md) for the daily checks, report/incident procedure, known limits and emergency closure.
+
+A fresh encrypted snapshot of all three databases was verified on the Mac before opening. Rollback configuration is `/var/backups/public-launch/beta-config-20261115T213325Z`. Workers were not restarted, counters were not reset, and no old database was restored. Keep the per-account/global limits and all safety controls. The observation window runs until at least 2026-11-29 21:33 UTC; its exit checks remain uncompleted.
+
+Google still has the Testing console label. The deployed `openid email` request qualifies for Google's documented basic-identity allowlist exception. Actual owner Google/email sign-in passed earlier; a second Google identity has not been tested. Real admin-password entry remains an owner check with the audited host CLI available meanwhile. The owner still needs to review/accept the Hetzner agreement if they agree and cover the abuse mailbox/report list.
+
+The sections below describe earlier rollout stages; statements that legal review or closed public intake remain mandatory are superseded by this beta decision.
+
 See [SELF_HOSTING.md](../SELF_HOSTING.md) for initial installation.
 
 ## Update and rollback

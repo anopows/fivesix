@@ -1,6 +1,18 @@
 # Public-launch release and recovery
 
-## Release status
+## Public beta opened — 15 November 2026
+
+**Current state:** Five·Six registration and uploads opened at 21:33:29 UTC with a 100-account cap. Both services' Terms, Privacy and Legal/Contact pages are public. Runtime revision remains `e48f141a8a4407105c8dbb9bc2dbd70abda58b7b`; this was an operator-configuration rollout, not an application-code change. All four existing practice links and byte-range playback passed, private-library access stayed 401, and both public health endpoints passed.
+
+The owner explicitly declined hiring a lawyer and authorized a best-effort launch. That supersedes the professional-review gate in the historical record below. No legal-compliance guarantee is made and the Hetzner DPA has not been accepted on the owner's behalf. No residential address was published or host upgrade purchased. See [BETA_OPERATIONS.md](BETA_OPERATIONS.md) for the daily checks, report/incident procedure, known limits and emergency closure.
+
+A fresh encrypted snapshot of all three databases was verified on the Mac before opening. Rollback configuration is `/var/backups/public-launch/beta-config-20261115T213325Z`. Workers were not restarted, counters were not reset, and no old database was restored. Keep the per-account/global limits and all safety controls. The observation window runs until at least 2026-11-29 21:33 UTC; its exit checks remain uncompleted.
+
+Google still has the Testing console label. The deployed `openid email` request qualifies for Google's documented basic-identity allowlist exception. Actual owner Google/email sign-in passed earlier; a second Google identity has not been tested. Real admin-password entry remains an owner check with the audited host CLI available meanwhile. The owner still needs to review/accept the Hetzner agreement if they agree and cover the abuse mailbox/report list.
+
+The sections below describe earlier rollout stages; statements that legal review or closed public intake remain mandatory are superseded by this beta decision.
+
+## Historical release status before public beta
 
 On 15 November Five·Six **2.1.0** screening, moderation and monthly cost guards were deployed from CI-passing [PR #11](https://github.com/anopows/fivesix/pull/11), revision `e0b91f81001664ffbfd4c543358d9db81e0c4868`. A follow-up fail-closed budget webhook fix from [PR #15](https://github.com/anopows/fivesix/pull/15), revision `e48f141a8a4407105c8dbb9bc2dbd70abda58b7b`, was deployed after another encrypted database backup and passing CI. The M3 rollback source/runtime is `/var/backups/public-launch/m3-code-20261115T173035Z`; the diagnostic rollback is `/var/backups/public-launch/webhook-failclosed-20261115T210627Z`. Both sites remained healthy. Public signups stay closed and uploads paused except for the admin.
 
@@ -23,7 +35,7 @@ The owner explicitly declined the CPX42 purchase and chose to retain the existin
 
 The first M3 startup rolled back because the model directory was unreadable to the worker. Before that failure the approved backfill had already deleted the four original uploaded R2 objects; their derived practice copies remain. Database backups contain no media and cannot restore the originals. After correcting permissions and confirming a repeat guard migration, a second attempt stopped before changes on staging bytecode; the next attempt succeeded. Guard usage was retained. Do not reset or roll back usage counters during recovery.
 
-## Required operator evidence before rollout
+## Original rollout checklist (apply the beta exceptions above)
 
 - Confirmed operator identity and country; reviewed final Terms, Privacy and Legal Notice, including a decision about any applicable postal-contact requirement. Templates under deploy/legal-templates have deliberate placeholders; install finished files outside git under /etc/choreo/legal. The Legal Notice must contain id="report".
 - Written suspected-abuse reporting and preservation procedure, including authority and retention. The service does not automatically submit authority reports.
