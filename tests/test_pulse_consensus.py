@@ -26,7 +26,7 @@ def test_conflicting_notes_and_slow_rises_are_uncertain():
 @pytest.mark.parametrize('acoustic_stable',[False,True])
 def test_every_prior_group_must_accept_final_onset(monkeypatch,acoustic_stable):
     slots=[dict(index=i,predicted=.2+i*.4,detected=True) for i in range(4)]
-    def analyze(audio,arrays,priors,onset_index):
+    def analyze(audio,arrays,priors,onset_index,energy=None):
         assert onset_index is not None
         values=np.tile([s['predicted']-.03 for s in slots],(72,1))
         details=[[dict(source='high',score=.8,pulseSupport=.8) for _ in slots] for _ in range(72)]
@@ -46,3 +46,29 @@ def test_every_prior_group_must_accept_final_onset(monkeypatch,acoustic_stable):
     assert events[2]['time']==pytest.approx(slots[2]['predicted']-(.02 if acoustic_stable else 0))
     assert all(e['time']==pytest.approx(e['predicted']-.03) for i,e in enumerate(events) if i!=2)
     assert q['runs']==360 and q['onsetsInsideConsensus']
+
+
+def test_envelopes_do_not_retain_full_rate_buffers():
+    # A strided view of the float64 envelope kept 8 bytes per input sample
+    # alive per lane and per prior shift: about 5 GB for a 10-minute video.
+    y=np.random.default_rng(1).standard_normal(p.SR*3).astype(np.float32)
+    energy=p.envelopes({'mix':y,'bass':y})
+    for lane in ('mix','bass'):
+        assert energy[lane].base is None
+        assert len(energy[lane])==-(-len(y)//p.ESTEP)
+
+
+def test_select_clock_computes_envelopes_once(monkeypatch):
+    slots=[dict(index=i,predicted=.2+i*.4,detected=True) for i in range(4)]
+    computed=[];received=[]
+    monkeypatch.setattr(p,'envelopes',lambda audio:computed.append(1) or {'mix':np.zeros(10)})
+    def analyze(audio,arrays,priors,onset_index,energy=None):
+        received.append(energy)
+        return dict(runs=np.tile([s['predicted'] for s in slots],(2,1)),configs=[{'audioEvidence':'mix'},{'audioEvidence':'joint'}],
+                    details=[[dict(source='mix',score=.8,pulseSupport=.8) for _ in slots]]*2,window={},
+                    base=dict(runs=np.tile([s['predicted'] for s in slots],(2,1)),configs=[{'audioEvidence':'mix'},{'audioEvidence':'joint'}],
+                              details=[[dict(source='mix',score=.8,pulseSupport=.8) for _ in slots]]*2))
+    monkeypatch.setattr(p,'analyze_signals',analyze)
+    p.select_clock({}, {},slots,2.,onsets={})
+    assert computed==[1] and len(received)==len(p.PRIOR_SHIFTS_MS)
+    assert all(e is received[0] for e in received)

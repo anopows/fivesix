@@ -145,12 +145,21 @@ def refine_attack(t,index,priors,time_axis,lane_curves,energy,allowed):
     group=[c for c in candidates if c['score']>=best['score']*.75 and abs(c['time']-best['time'])<.035]
     return min(group,key=lambda c:c['time'])
 
-def analyze_signals(audio,feature_arrays,priors,onset_index=None):
+def envelopes(audio):
+    """Decimated RMS envelopes. They do not depend on the beat priors.
+
+    The decimated slice is copied: a strided view would keep the full-rate
+    float64 buffer (8 bytes per sample) alive for as long as the result is held.
+    """
+    return {lane:np.sqrt(np.maximum(0,uniform_filter1d(np.asarray(y,float)**2,size=529)))[::ESTEP].copy()
+            for lane,y in audio.items()}
+
+def analyze_signals(audio,feature_arrays,priors,onset_index=None,energy=None):
     lanes=tuple(audio)
     priors=np.asarray(priors,float)
     time_axis,curves=evidence_curves(feature_arrays)
     window=learned_window(np.mean([curves['mix',s,m] for s in SIZES for m in METHOD_IDS],axis=0),time_axis,priors)
-    energy={lane:np.sqrt(np.maximum(0,uniform_filter1d(np.asarray(audio[lane],float)**2,size=529)))[::ESTEP] for lane in lanes}
+    if energy is None:energy=envelopes(audio)
     runs=[];configs=[];details=[];base_runs=[];base_details=[];base_configs=[]
     periods=local_periods(priors)
     for sizes in ((1024,),(2048,),(1024,2048)):
@@ -238,10 +247,10 @@ def select_clock(audio, arrays, slots, duration, progress=lambda _:None, onsets=
         return [{**s,'time':s['predicted'],'source':'pulse','strength':0,'status':'pulse','timingConfidence':'insufficient_context'} for s in slots],{'algorithm':ALGORITHM,'counts':len(slots),'supportedAttacks':0,'pulseFallbacks':len(slots)}
     from .attack_candidates import OnsetIndex
     onset_index=OnsetIndex(onsets) if onsets is not None else None
-    analyses={}
+    analyses={};energy=envelopes(audio)
     for shift in PRIOR_SHIFTS_MS:
         progress(f'Checking acoustic and onset settings; beat prior {shift:+d} ms')
-        analyses[shift]=analyze_signals(audio,arrays,priors+shift/1000,onset_index)
+        analyses[shift]=analyze_signals(audio,arrays,priors+shift/1000,onset_index,energy=energy)
     output=[]
     for i,slot in enumerate(slots):
         summaries={shift:summarize_slot(a,i) for shift,a in analyses.items()}
