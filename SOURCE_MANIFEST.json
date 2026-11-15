@@ -99,6 +99,7 @@
   "tests/test_retention.py": "ad65ce5f9679474b061cfb7551cb2fa2593e77d904373621a39ec104a8861073",
   "tests/test_service.py": "463b17834ded4a9021be90709fbe0905cef976023e2bb8bbca86f0fb317acdf9",
   "tests/test_slow_audio.py": "6cba1f4bc6df6ebbcf460e095ec3ea3ec83df0c3c899db31d7fde02decba6007",
+  "tests/test_source_manifest.py": "bd8c6ed5948ac0117960ea45f10616d95a549d339a01117fd6afcc60c5674636",
   "tests/timing_controls.py": "58ec511ac7848d5dc09e19a03cb873821deac0eb5df9fa209e25a8cec92f6d28",
   "uv.lock": "da2725e66d5ec3a32989311f7f23ad5688613c02bb7dd76a0aafdcfead6653a1",
   "disposable_email_domains": {
