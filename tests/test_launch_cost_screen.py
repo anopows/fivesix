@@ -57,6 +57,25 @@ def test_screen_error_is_closed_and_writes_summary(tmp_path,monkeypatch):
     assert not (tmp_path/'screen').exists()
 
 
+@pytest.mark.parametrize('fail',[False,True])
+def test_classifier_restores_caller_threads_on_success_and_error(monkeypatch,fail):
+    import sys,types
+    import choreo.screen as module
+    state={'threads':3,'history':[]}
+    def set_threads(value):state['threads']=value;state['history'].append(value)
+    fake=types.SimpleNamespace(get_num_threads=lambda:state['threads'],set_num_threads=set_threads)
+    monkeypatch.setitem(sys.modules,'torch',fake)
+    def classifier(paths,models):
+        assert state['threads']==4
+        if fail:raise RuntimeError('classifier failed')
+        return [.25]
+    monkeypatch.setattr(module,'_nsfw_scores',classifier)
+    if fail:
+        with pytest.raises(RuntimeError):module.nsfw_scores([],None)
+    else:assert module.nsfw_scores([],None)==[.25]
+    assert state['threads']==3 and state['history']==[4,3]
+
+
 def pipeline_stub(monkeypatch,worker,job,code=None):
     import choreo.worker as module
     class Process:

@@ -33,6 +33,18 @@ def decision(scores,persons=None):
 
 
 def nsfw_scores(paths,models):
+    # Four inference threads use the available three-CPU quota more efficiently
+    # on the deployment host. Restore the caller's setting for other models.
+    import torch
+    previous=torch.get_num_threads()
+    try:
+        torch.set_num_threads(4)
+        return _nsfw_scores(paths,models)
+    finally:
+        torch.set_num_threads(previous)
+
+
+def _nsfw_scores(paths,models):
     import torch
     from PIL import Image
     from transformers import AutoImageProcessor,AutoModelForImageClassification
