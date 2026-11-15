@@ -10,7 +10,7 @@ The complete 14 November 2026 Claude design is the implementation baseline. Thes
 
 ## Verification and release status
 
-The user explicitly authorized publication, merges, encrypted Mac backups and deployment. Both tested PRs are merged; the compatible five·six 1.2 and Songfinder 0.3 foundations are deployed. The full 2.1 implementation remains gated. See PUBLIC_LAUNCH.md and RUNBOOK.md for evidence and remaining inputs.
+The user explicitly authorized publication, merges, encrypted Mac backups and deployment. The tested implementation PRs are merged. The verified five·six 2.0.1 accounts release is deployed from `launch/m2`; Songfinder retains its 0.3 foundation release marker. The full 2.1 implementation remains gated. See PUBLIC_LAUNCH.md and RUNBOOK.md for evidence and remaining inputs.
 
 The existing production host was checked read-only: 4 vCPU, about 8 GB RAM, 80 GB disk. It does not meet the design M3 requirement (6 vCPU, 16 GB RAM, 160 GB disk). Existing service health remained green at the check.
 
