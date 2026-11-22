@@ -23,7 +23,7 @@
   }
   function show(view){
     for(const id of ['welcome','unlock','library','progress'])$(id).hidden=id!==view;
-    $('signout').hidden=!csrf;
+    $('signout').hidden=view==='unlock'||(busy && !cfg?.user);
     document.title=view==='library'||view==='progress'?'Your videos · five·six':'five·six';
     if(view!=='library')clearTimeout(libTimer);
   }
@@ -59,11 +59,17 @@
       'error-callback':()=>message("The security check didn't finish. Reload the page and try again.")});
   }
   function resetCheck(){loginToken='';if(window.turnstile&&loginWidget!==undefined)turnstile.reset(loginWidget);enableSignin();}
-  function showUnlock(){message('');show('unlock');widget();$('email').focus();}
+  function showUnlock(reason=''){
+    message('');show('unlock');
+    $('signin-title').textContent=reason==='share'?'Sign in to share your video':'Sign in to five·six';
+    $('signin-reason').textContent=reason==='limit'?'You’ve reached the guest upload limit. Sign in to add another video.':
+      cfg.guest?'Sign in here to keep your videos in your account. If you choose email, open the link in this browser.':'Use an existing account or create one below.';
+    widget();$('email').focus();
+  }
   $('consent').addEventListener('change',enableSignin);$('email').addEventListener('input',enableSignin);
   $('google-signin').addEventListener('click',()=>{if(!$('google-signin').disabled)location.assign('/auth/google/start?terms='+($('consent').checked?cfg.termsVersion:0));});
-  $('start').addEventListener('click',showUnlock);
-  $('unlock-back').addEventListener('click',()=>{message('');show('welcome');});
+  $('start').addEventListener('click',()=>$('file').click());
+  $('unlock-back').addEventListener('click',()=>{message('');if(cfg.guest)showRoom();else show('welcome');});
   $('login-form').addEventListener('submit',async e=>{
     e.preventDefault();message('');$('login-submit').disabled=true;
     try{await api('/api/auth/email',{method:'POST',body:JSON.stringify({email:$('email').value,token:loginToken,terms:$('consent').checked?cfg.termsVersion:0})});$('signin-controls').hidden=true;$('email-sent').hidden=false;$('different-email').hidden=false;$('email-sent').textContent=`Check your inbox. If sign-in is available for ${$('email').value}, a link will arrive shortly. It works for 15 minutes.`;}
@@ -71,7 +77,7 @@
   });
   $('different-email').addEventListener('click',()=>{$('signin-controls').hidden=false;$('email-sent').hidden=true;$('different-email').hidden=true;});
   async function signout(){try{await api('/api/logout',{method:'POST',body:'{}'});sessionStorage.removeItem('choreo-active');location.assign('/');}catch(e){message(e.message);}}
-  $('signout').addEventListener('click',()=>{const q=cfg.user.quota;$('account-title').textContent=cfg.user.email;$('account-quota').textContent=`${q.dayUsed} of ${q.dayLimit} today · ${q.monthUsed} of ${q.monthLimit} in 30 days`;$('admin-link').hidden=!cfg.user.admin;$('account-delete').hidden=cfg.user.admin;open('account-sheet');});
+  $('signout').addEventListener('click',()=>{if(!cfg.user){clearTimeout(pollTimer);showUnlock();return;}const q=cfg.user.quota;$('account-title').textContent=cfg.user.email;$('account-quota').textContent=`${q.dayUsed} of ${q.dayLimit} today · ${q.monthUsed} of ${q.monthLimit} in 30 days`;$('admin-link').hidden=!cfg.user.admin;$('account-delete').hidden=cfg.user.admin;open('account-sheet');});
   $('account-signout').addEventListener('click',signout);$('terms-signout').addEventListener('click',signout);
   $('account-delete').addEventListener('click',()=>{$('confirm-email').value='';$('confirm-account-delete').disabled=true;open('account-delete-sheet');});
   $('confirm-email').addEventListener('input',()=>{$('confirm-account-delete').disabled=$('confirm-email').value!==cfg.user.email;});
@@ -83,8 +89,9 @@
 
   // ---------- library ----------
   async function showRoom(){
-    const ret=new URLSearchParams(location.search).get('return');
-    if(/^\/practice\/[a-f0-9]{32}$/.test(ret||'')){location.assign(ret);return;}
+    const ret=new URLSearchParams(location.search).get('return')||sessionStorage.getItem('practice-return');
+    if(cfg.user)sessionStorage.removeItem('practice-return');
+    if(cfg.user&&/^\/practice\/[a-f0-9]{32}$/.test(ret||'')){location.assign(ret);return;}
     show('library');await library();
     if(cfg.user?.termsRequired){$('terms-sheet').showModal();if(!cfg.legalReady)$('terms-error').textContent='Updated terms are not available yet. Please sign out and try again later.';}
     const active=sessionStorage.getItem('choreo-active');
@@ -122,7 +129,7 @@
     clearTimeout(libTimer);
     let data;
     try{data=await api('/api/projects');}catch(e){if(e.status===401){csrf='';show('welcome');return;}message(e.message);return;}
-    cfg=await api('/api/bootstrap');updateAccount();
+    cfg=await api('/api/bootstrap');csrf=cfg.csrf||'';updateAccount();
     const list=$('projects');list.replaceChildren();
     if(!data.projects.length){const p=document.createElement('p');p.className='empty';p.textContent='No videos yet. Add a practice clip to get started.';list.append(p);}
     for(const p of data.projects)list.append(card(p));
@@ -130,6 +137,8 @@
   }
   $('card-share').addEventListener('click',async()=>{
     const url=location.origin+'/practice/'+cardProject.id;$('card-sheet').close();
+    if(!cfg.user){sessionStorage.setItem('practice-return','/practice/'+cardProject.id);showUnlock('share');return;}
+    try{await api('/api/projects/'+cardProject.id+'/share',{method:'POST',body:'{}'});}catch(e){message(e.message);return;}
     try{await navigator.clipboard.writeText(url);toast('Link copied');}catch{toast("Couldn't copy. Open the video and tap Share.");}
   });
   $('card-rename').addEventListener('click',()=>{open('rename-sheet');$('rename-input').value=cardProject.name;$('rename-input').select();});
@@ -160,8 +169,21 @@
     const ftyp=String.fromCharCode(...bytes.slice(4,8))==='ftyp',ebml=[0x1a,0x45,0xdf,0xa3].every((b,i)=>bytes[i]===b);
     if(!ftyp&&!ebml){message("This doesn't look like a video file.");return;}
     // Convenience checks only. The server validates and decodes the whole video.
-    file=f;await begin();
+    file=f;
+    if(cfg.user){await begin();return;}
+    if(!cfg.legalReady){message('Guest uploads are temporarily unavailable.');return;}
+    $('guest-file').textContent=file.name;
+    $('guest-consent').checked=false;$('guest-upload').disabled=true;open('guest-sheet');
   }
+  $('guest-consent').addEventListener('change',()=>{$('guest-upload').disabled=!$('guest-consent').checked;});
+  $('guest-upload').addEventListener('click',async()=>{
+    if(!$('guest-consent').checked||busy)return;
+    $('guest-upload').disabled=true;
+    try{
+      const guest=await api('/api/guest-session',{method:'POST',body:JSON.stringify({terms:cfg.termsVersion})});
+      csrf=guest.csrf;cfg.guest=true;$('guest-sheet').close();updateAccount();await begin();
+    }catch(e){$('guest-sheet').close();if(e.status===429)showUnlock('limit');else message(e.message);}
+  });
   $('file').addEventListener('change',()=>{const f=$('file').files[0];$('file').value='';choose(f);});
   $('dropzone').addEventListener('dragover',e=>{e.preventDefault();$('dropzone').classList.add('dragging');});
   $('dropzone').addEventListener('dragleave',()=>$('dropzone').classList.remove('dragging'));
@@ -189,7 +211,7 @@
       projectId=result.id;sessionStorage.setItem('choreo-active',projectId);
       progressView(file.name.replace(/\.[^.]+$/,''),mb(file.size));steps('upload','0%');
       busy=false;await sendParts();
-    }catch(e){busy=false;message(explain(e));}
+    }catch(e){busy=false;if(e.status===401&&!cfg.user)showUnlock('limit');else message(explain(e));}
   }
   async function sendParts(){
     busy=true;cancelled=false;$('resume').hidden=true;
@@ -223,8 +245,8 @@
     clearTimeout(pollTimer);projectId=id;
     try{
       const p=await api('/api/projects/'+id);
-      if(p.hold){chip('paused','Under review');openBtn.addEventListener('click',()=>toast('This video is unavailable while it is being reviewed.'));}
-    else if(p.status==='ready'){sessionStorage.removeItem('choreo-active');location.assign('/practice/'+id);return;}
+      if(p.hold){sessionStorage.removeItem('choreo-active');show('library');await library();return;}
+      if(p.status==='ready'){sessionStorage.removeItem('choreo-active');location.assign('/practice/'+id);return;}
       if(p.status==='failed'){sessionStorage.removeItem('choreo-active');show('library');message(p.error||'Something went wrong with this video. Try again, or ask the person who runs this site.');library();return;}
       if(p.status==='uploading'){if(!busy)paused(p);return;}
       if($('progress').hidden||$('progress-name').textContent!==p.name)progressView(p.name,mb(p.bytes));
@@ -247,7 +269,15 @@
   $('progress-back').addEventListener('click',()=>{clearTimeout(pollTimer);if(!busy)resuming=null;show('library');library();});
 
   function updateAccount(){
-    $('signout').textContent=cfg.user?.email||'Account';
+    $('signout').textContent=cfg.user?.email||'Sign in';
+    const hours=cfg.guestRetentionHours;
+    $('guest-intro').textContent=`Try a clip without an account. Come back in this browser for ${hours} hours, or sign in to keep and share it.`;
+    $('guest-storage').textContent=`This video stays private in this browser for ${hours} hours. Sign in before it expires to keep it in your account and share it.`;
+    $('guest-library').hidden=!cfg.guest;
+    $('guest-library').textContent=`Only this browser can open your guest videos. Sign in before their ${hours} hours are up to keep and share them.`;
+    $('limits').textContent=`MP4, MOV or WebM · up to ${Math.round(cfg.maxBytes/1e6)} MB and ${Math.round(cfg.maxDuration/60)} min · kept ${cfg.user?cfg.retentionDays+' days':hours+' hours'}`;
+    $('share-label').textContent=cfg.user?'Copy share link':'Sign in to share';
+    $('share-detail').textContent=cfg.user?'Anyone with the link can watch and download':'Keep this video in your account and share it by link';
     const hold=cfg.user?.uploadHold,paused=cfg.uploadsPaused&&!cfg.user?.admin;
     $('upload-banner').hidden=!(hold||paused);$('upload-banner').textContent=hold?'Uploads are paused for this account while a recent video is reviewed. Check your email.':'Uploads are paused right now. Your videos still work.';
     $('dropzone').hidden=!!(hold||paused);document.querySelector('.lib-h label').hidden=!!(hold||paused);
@@ -257,14 +287,16 @@
   (async()=>{
     try{
       cfg=await api('/api/bootstrap');csrf=cfg.csrf||'';
-      $('limits').textContent=`MP4, MOV or WebM · up to ${Math.round(cfg.maxBytes/1e6)} MB and ${Math.round(cfg.maxDuration/60)} min · kept ${cfg.retentionDays} days`;
       updateAccount();$('google-signin').hidden=!cfg.googleSignIn;$('login-form').hidden=!cfg.emailSignIn;$('signin-or').hidden=!(cfg.googleSignIn&&cfg.emailSignIn);$('consent').parentElement.hidden=!cfg.legalReady;
       $('signin-notice').textContent=(!cfg.emailSignIn&&!cfg.googleSignIn)?'Sign-in is not available right now.':!cfg.signupsOpen?'New sign-ups are paused. If you already have an account, sign in below.':'';enableSignin();
       const hours=Math.round((cfg.sessionSeconds||28800)/3600);
       $('unlock-note').textContent=`Stays unlocked on this device for ${hours>=48?Math.round(hours/24)+' days':hours+' hours'}.`;
-      if(csrf)await showRoom();
+      const query=new URLSearchParams(location.search),ret=query.get('return');
+      if(!cfg.user&&/^\/practice\/[a-f0-9]{32}$/.test(ret||''))sessionStorage.setItem('practice-return',ret);
+      if(cfg.user)await showRoom();
       else if(new URLSearchParams(location.search).has('signin')){const url=new URL(location.href),code=url.searchParams.get('signin');showUnlock();message(({cancelled:'Sign-in was cancelled.',expired:'That sign-in attempt expired. Try again.',unavailable:"Google sign-in isn't available right now. Try the email link.",failed:"We couldn't sign you in with that account.",closed:"five·six isn't taking new sign-ups right now.",terms:'Tick the box to accept the terms, then try again.',conflict:'This email is linked to a different Google account. Use the email link instead.',verify_email:'Check your inbox to confirm this email address and finish signing in.'})[code]||'Please try signing in again.');url.searchParams.delete('signin');history.replaceState(null,'',url.pathname+url.search);}
-      else if(new URLSearchParams(location.search).get('return'))showUnlock();
+      else if(ret)showUnlock('share');
+      else if(cfg.guest)await showRoom();
       else show('welcome');
     }catch(e){show('welcome');message("Can't reach five·six right now. Check your connection and reload.");}
   })();

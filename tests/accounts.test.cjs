@@ -17,7 +17,7 @@ test('sign-in buttons require consent, email and a fresh human-check token',asyn
  const context={document:{getElementById:element,querySelectorAll:()=>[],querySelector:()=>element('add-label')},URLSearchParams,location:{search:''},setTimeout,clearTimeout,fetch:async()=>({ok:true,json:async()=>cfg}),console};
  context.window={turnstile:{render:(selector,opts)=>{check=opts;return 1;},reset(){}}};context.turnstile=context.window.turnstile;vm.createContext(context);vm.runInContext(source('room.js'),context);await new Promise(r=>setImmediate(r));
  assert.equal(element('login-submit').disabled,true);assert.equal(element('google-signin').disabled,true);
- callbacks['start:click']();await new Promise(r=>setImmediate(r));assert.equal(check.action,'signin');
+ callbacks['signout:click']();await new Promise(r=>setImmediate(r));assert.equal(check.action,'signin');
  element('email').value='dancer@example.com';callbacks['email:input']();check.callback('token');assert.equal(element('login-submit').disabled,true);
  element('consent').checked=true;callbacks['consent:change']();assert.equal(element('login-submit').disabled,false);assert.equal(element('google-signin').disabled,false);
  check['expired-callback']();assert.equal(element('login-submit').disabled,true);element('consent').checked=false;callbacks['consent:change']();assert.equal(element('google-signin').disabled,true);

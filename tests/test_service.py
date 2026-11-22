@@ -58,6 +58,18 @@ def unlock(client,email="admin@example.com"):
     return r
 
 
+def start_guest(client):
+    r = client.post('/api/guest-session', json={'terms': 1})
+    assert r.status_code == 200, r.text
+    client.headers['X-CSRF-Token'] = r.json()['csrf']
+    return r
+
+
+def open_uploads(app):
+    with app.state.db.connect(write=True) as con:
+        con.execute("UPDATE flags SET value='0' WHERE key='uploads_paused'")
+
+
 def begin(client, size=100, **kwargs):
     return client.post("/api/uploads", json={"name": "dance.mp4", "bytes": size,
         "token": uuid.uuid4().hex, "request_id": uuid.uuid4().hex, **kwargs})

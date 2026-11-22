@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     project_egress_day_bytes: int = 50_000_000_000
     user_uploads_day: int = 5
     user_uploads_month: int = 20
+    guest_retention_hours: int = 48
+    guest_uploads_day: int = 1
+    guest_uploads_week: int = 2
     ip_uploads_day: int = 15
     site_uploads_day: int = 150
     site_upload_bytes_day: int = 10_000_000_000
@@ -68,7 +71,7 @@ class Settings(BaseSettings):
             raise RuntimeError("Google ID and secret must both be configured")
         if self.smtp_host and (self.smtp_port != 587 or not all((self.smtp_user, self.smtp_password, self.mail_from))):
             raise RuntimeError("SMTP requires port 587, credentials and a From address")
-        if any(getattr(self, key) <= 0 for key in ("signup_cap", "storage_cap_bytes", "project_egress_day_bytes", "user_uploads_day", "user_uploads_month", "ip_uploads_day", "site_uploads_day", "site_upload_bytes_day", "analyze_queue_limit", "email_daily_cap")):
+        if any(getattr(self, key) <= 0 for key in ("signup_cap", "storage_cap_bytes", "project_egress_day_bytes", "user_uploads_day", "user_uploads_month", "guest_retention_hours", "guest_uploads_day", "guest_uploads_week", "ip_uploads_day", "site_uploads_day", "site_upload_bytes_day", "analyze_queue_limit", "email_daily_cap")):
             raise RuntimeError("Launch limits must be positive")
         fields = (self.password_hash, self.turnstile_site_key, self.turnstile_secret,
                   self.r2_endpoint, self.r2_access_key, self.r2_secret_key)

@@ -224,7 +224,7 @@
     saveTimer=setTimeout(async()=>{
       try{
         const result=await R.save({...window.currentAlignment});
-        if(result?.scope==='shared')status.textContent='Saved. Everyone with the link sees this.';
+        if(result?.scope==='shared')status.textContent=R.payload.shared?'Saved. Everyone with the link sees this.':'Saved to your private video.';
         else{state.localFix=true;updateNotice();status.textContent=result?.scope==='device'?'Saved on this device. Others still see the original counts.':'Kept until you close this page.';}
       }catch(e){status.classList.add('bad');status.textContent="Couldn't save your change. Check your connection and try again.";}
     },450);
@@ -290,8 +290,14 @@
   if(unsupported)$('download-note').textContent="No steady beat was found, so a video with counts can't be made for this clip.";
 
   // ---------- share ----------
-  $('share-url').value=R.shareUrl;$('share-expiry').textContent=`The link stops working on ${fmtDate(R.payload.expires)}.`;
+  if(!R.signedIn)$('share').setAttribute('aria-label','Sign in to share');
+  $('share-url').value=R.payload.shared?R.shareUrl:'';$('share-expiry').textContent=`The link stops working on ${fmtDate(R.payload.expires)}.`;
   $('share').addEventListener('click',async()=>{
+    if(!R.signedIn){location.assign('/?return='+encodeURIComponent('/practice/'+R.pid));return;}
+    if(!R.payload.shared){
+      try{await R.enableSharing();}catch(e){error(e.message);return;}
+    }
+    $('share-url').value=R.shareUrl;
     if(navigator.share&&matchMedia('(pointer: coarse)').matches){
       try{await navigator.share({title:`${R.payload.name} with counts`,url:R.shareUrl});return;}catch(e){if(e.name==='AbortError')return;}
     }

@@ -6,11 +6,11 @@ Upload a dance video and get **1–8 counts** on it, slow-mo that keeps the pitc
 beat-by-beat stepping and repeat. Share a link or download the video with the
 counts on. Self-hostable.
 
-- Upload once; send the **Share** link. Visitors can practice and download count
-  videos without a password.
+- Try a private clip without signing in. Return in the same browser to practise.
+  Sign in before it expires, then select **Share** to send a link.
 - Verified email-link or Google sign-in protects each private library. Only the
   owner can rename, delete or change shared counts. Turnstile protects sign-in.
-- Uploads and generated media stay available for **90 days from upload**.
+- Guest clips last **48 hours**. Account clips last **90 days from upload**.
 - Download videos with counts at **100% or 25% speed**.
 - Full-mix playback at 25%, 50%, and 75% uses prepared, pitch-preserving Rubber
   Band R3 audio. AI-separated bass, drums, piano, and guitar are under
@@ -165,11 +165,11 @@ choice of count 1. Real recordings still need independently reviewed anchors.
 
 ## Accounts and public-launch controls
 
-Uploaders sign in with a single-use email link or Google. Each account has a private library; a share-link visitor can practise and export without signing in. Signing in as another account does not grant management access. Email links expire in 15 minutes and require a confirmation click; sessions expire after 30 days. There are no user passwords. The original room password is now an additional admin check.
+Guests can upload once per rolling day and twice per rolling week per browser and network. Signing in with a single-use email link or Google claims available guest clips from the same browser. Each account has a private library; a share-link visitor can practise and export without signing in. Signing in as another account does not grant management access. Email links expire in 15 minutes and require a confirmation click; sessions expire after 30 days. There are no user passwords. The original room password is now an additional admin check.
 
-The free allowance is 5 uploads in 24 hours, 20 in 30 days, one active upload or analysis per account, 500 MB and 10 minutes per video. Cancelled uploads count. Global admission is 150 uploads and 10 GB per day, plus queue and storage checks. Uploads start paused; administrators may test while paused but remain subject to all other limits.
+The account allowance is 5 uploads in 24 hours, 20 in 30 days, one active upload or analysis per account, 500 MB and 10 minutes per video. Cancelled uploads count. Global admission is 150 uploads and 10 GB per day, plus queue and storage checks. Uploads start paused; administrators may test while paused but remain subject to all other limits.
 
-Local NSFW and person screening runs before beat analysis. Rejected files never become playable. This is a classifier, not a guarantee of legality; required real-video calibration and the operator's reporting procedure are launch gates. Only derived media is served. Originals are deleted after successful analysis; other files expire 90 days after upload.
+Local NSFW and person screening runs before beat analysis. Rejected files never become playable. This is a classifier, not a guarantee of legality; required real-video calibration and the operator's reporting procedure are launch gates. Only derived media is served. Originals are deleted after successful analysis; derived files follow the guest or account expiry.
 
 Every player has a report form. Illegal-content reports immediately hide the video. The admin interface supports review, removal, account bans, upload holds and quarantine. Quarantine is unreachable even to the admin and survives database expiry; the bucket's 90-day lifecycle remains a preservation limit. Deleting an account does not erase a preservation hold.
 

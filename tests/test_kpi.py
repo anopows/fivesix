@@ -76,3 +76,4 @@ def test_exporter_new_gauges(room, tmp_path, monkeypatch):
     monkeypatch.setenv('CHOREO_STATE_DIR',str(cfg.state_dir));monkeypatch.setattr(sys,'argv',['kpi_export',str(tmp_path/'stats.json')]);kpi_export.main()
     g=json.loads((tmp_path/'stats.json').read_text())['gauges']
     assert g['projects_ready']==1 and g['queue_limit']==4
+    assert g['users_total']==1 and g['users_active_7d']==1 and g['users_with_videos']==1 and g['users_signed_in_now']==1 and g['users_cap']==cfg.signup_cap
