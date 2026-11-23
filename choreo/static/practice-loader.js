@@ -28,7 +28,11 @@
     }
     let saves=Promise.resolve();
     window.ROOM={
-      pid,payload,
+      pid,payload,signedIn:!!config.user,
+      async enableSharing(){
+        await api(`/api/projects/${pid}/share`,{method:'POST',body:'{}'});
+        payload.shared=true;
+      },
       get owner(){return !!payload.owner;},
       hasLocal:!!local,
       shareUrl:location.origin+'/practice/'+pid,
@@ -64,6 +68,6 @@
     }
     function schedule(expires){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>refresh().catch(e=>{const p=document.getElementById('error');p.hidden=false;p.textContent=e.message;}),Math.max(30000,expires*1000-Date.now()-90000));}
     schedule(payload.urlExpires);
-    const app=document.createElement('script');app.src='/static/app.js?v=7';document.head.append(app);
+    const app=document.createElement('script');app.src='/static/app.js?v=8';document.head.append(app);
   }catch(e){fail(e.message);}
 })();

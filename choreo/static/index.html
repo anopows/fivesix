@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0C0C0E"><title>five·six</title><meta name="description" content="Counts on every dance video: automatic 1–8 counts, slow-mo that keeps the pitch, and repeat."><link rel="icon" href="data:,"><link rel="stylesheet" href="/static/ui.css?v=7"><link rel="stylesheet" href="/static/room.css?v=7"><script defer src="/static/room.js?v=7"></script><script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0C0C0E"><title>five·six</title><meta name="description" content="Counts on every dance video: automatic 1–8 counts, slow-mo that keeps the pitch, and repeat."><link rel="icon" href="data:,"><link rel="stylesheet" href="/static/ui.css?v=7"><link rel="stylesheet" href="/static/room.css?v=7"><script defer src="/static/room.js?v=8"></script><script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="19" cy="12" r="1.8" fill="currentColor"/></symbol>
@@ -10,7 +10,7 @@
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 <main class="home">
-<nav class="top"><a class="logo" href="/">five<i>·</i>six</a><button id="signout" class="link quiet" hidden>Sign out</button></nav>
+<nav class="top"><a class="logo" href="/">five<i>·</i>six</a><button id="signout" class="link quiet" hidden>Sign in</button></nav>
 
 <section id="welcome" class="view" hidden>
   <h1 class="hero">Counts on every dance <i>video.</i></h1>
@@ -23,11 +23,11 @@
     <li><span>↓</span>Download with the counts on</li>
   </ul>
   <button id="start" class="btn brass wide">Add a video</button>
-  <p class="foot">Got a link from someone? Just open it. No sign-in needed.</p>
+  <p id="guest-intro" class="foot"></p>
 </section>
 
 <section id="unlock" class="view narrow" hidden>
-<h1 class="h1">Sign in to add videos</h1><p class="lead">Free while five·six is in early access.</p>
+<h1 id="signin-title" class="h1">Sign in to five·six</h1><p id="signin-reason" class="lead"></p>
 <p id="signin-notice" role="status"></p><div id="signin-controls">
 <label><input id="consent" type="checkbox"> I am 16 or older and agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</label>
 <button id="google-signin" class="btn light wide" disabled hidden>Continue with Google</button><p id="signin-or" class="foot" hidden>or</p>
@@ -38,6 +38,7 @@
 
 <section id="library" class="view" hidden>
   <header class="lib-h"><h1 class="h1">Your videos</h1><label class="btn brass small" for="file"><svg class="i" style="width:15px;height:15px"><use href="#i-plus"/></svg>Add video</label></header>
+  <p id="guest-library" class="lead small" hidden></p>
   <p id="upload-banner" class="message" hidden></p><div id="projects" class="cards" aria-live="polite"></div>
   <label class="drop" id="dropzone" for="file"><b>Drop a video here</b><small id="limits">MP4, MOV or WebM · up to 500 MB and 10 min · kept 90 days</small></label>
 </section>
@@ -61,10 +62,16 @@
 </main>
 <input id="file" class="sr-only" type="file" accept=".mp4,.mov,.m4v,.webm,video/mp4,video/quicktime,video/webm" aria-label="Choose a dance video" tabindex="-1">
 
+<dialog id="guest-sheet" class="sheet" aria-labelledby="guest-title">
+  <h2 id="guest-title">Try your video</h2><p id="guest-file"></p><p id="guest-storage"></p>
+  <label><input id="guest-consent" type="checkbox"> I am 16 or older and agree to the <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</label>
+  <div class="actions"><button class="btn ghost" data-close>Cancel</button><button id="guest-upload" class="btn brass" disabled>Upload video</button></div>
+</dialog>
+
 <dialog id="card-sheet" class="sheet" aria-labelledby="card-title">
   <div class="grab"></div>
   <div class="sh-head"><h2 id="card-title"></h2></div>
-  <button class="row" id="card-share"><span class="ri"><svg class="i"><use href="#i-share"/></svg></span><span class="t"><b>Copy share link</b><small>Anyone with the link can watch and download</small></span></button>
+  <button class="row" id="card-share"><span class="ri"><svg class="i"><use href="#i-share"/></svg></span><span class="t"><b id="share-label">Copy share link</b><small id="share-detail">Anyone with the link can watch and download</small></span></button>
   <button class="row" id="card-rename"><span class="ri"><svg class="i"><use href="#i-pen"/></svg></span><span class="t"><b>Rename</b></span></button>
   <button class="row danger" id="card-delete"><span class="ri"><svg class="i"><use href="#i-trash"/></svg></span><span class="t"><b>Delete video</b></span></button>
 </dialog>

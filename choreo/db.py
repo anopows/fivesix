@@ -36,7 +36,7 @@ class Database:
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with self.connect() as db:
-            if db.execute("PRAGMA user_version").fetchone()[0] > 1:
+            if db.execute("PRAGMA user_version").fetchone()[0] > 2:
                 raise RuntimeError("Database is newer than this code")
             for statement in SCHEMA.split(';'):
                 if statement.strip():
@@ -48,28 +48,31 @@ class Database:
         from .config import TERMS_VERSION
         with self.connect(write=True) as db:
             version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version > 1:
+            if version > 2:
                 raise RuntimeError("Database is newer than this code")
-            if version == 1:
-                return
-            email, key = normalize_email(cfg.admin_email)
-            db.execute("DROP TABLE sessions")
-            for statement in ACCOUNT_SCHEMA.split(';'):
-                if statement.strip():
-                    db.execute(statement)
-            for name, declaration in (
-                ('owner', "TEXT NOT NULL DEFAULT ''"), ('hold', 'INTEGER NOT NULL DEFAULT 0'),
-                ('stored_bytes', 'INTEGER NOT NULL DEFAULT 0'), ('original_stored', 'INTEGER NOT NULL DEFAULT 1'),
-                ('reject_code', 'TEXT'), ('screen', 'TEXT')):
-                db.execute(f"ALTER TABLE projects ADD COLUMN {name} {declaration}")
-            db.execute("CREATE INDEX projects_owner_created ON projects(owner,created)")
-            uid, now = secrets.token_hex(16), time.time()
-            db.execute("INSERT INTO users(id,email,email_key,terms_version,created,last_login) VALUES (?,?,?,?,?,?)",
-                       (uid,email,key,TERMS_VERSION,now,now))
-            db.execute("UPDATE projects SET owner=?", (uid,))
-            db.executemany("INSERT OR REPLACE INTO flags VALUES (?,?,?)",
-                           [('uploads_paused','1',now),('uploads_paused_reason','Pre-launch',now)])
-            db.execute("PRAGMA user_version=1")
+            if version == 0:
+                email, key = normalize_email(cfg.admin_email)
+                db.execute("DROP TABLE sessions")
+                for statement in ACCOUNT_SCHEMA.split(';'):
+                    if statement.strip():
+                        db.execute(statement)
+                for name, declaration in (
+                    ('owner', "TEXT NOT NULL DEFAULT ''"), ('hold', 'INTEGER NOT NULL DEFAULT 0'),
+                    ('stored_bytes', 'INTEGER NOT NULL DEFAULT 0'), ('original_stored', 'INTEGER NOT NULL DEFAULT 1'),
+                    ('reject_code', 'TEXT'), ('screen', 'TEXT')):
+                    db.execute(f"ALTER TABLE projects ADD COLUMN {name} {declaration}")
+                db.execute("CREATE INDEX projects_owner_created ON projects(owner,created)")
+                uid, now = secrets.token_hex(16), time.time()
+                db.execute("INSERT INTO users(id,email,email_key,terms_version,created,last_login) VALUES (?,?,?,?,?,?)",
+                           (uid,email,key,TERMS_VERSION,now,now))
+                db.execute("UPDATE projects SET owner=?", (uid,))
+                db.executemany("INSERT OR REPLACE INTO flags VALUES (?,?,?)",
+                               [('uploads_paused','1',now),('uploads_paused_reason','Pre-launch',now)])
+            if version < 2:
+                for statement in GUEST_SCHEMA.split(';'):
+                    if statement.strip():
+                        db.execute(statement)
+                db.execute("PRAGMA user_version=2")
 
     @contextlib.contextmanager
     def connect(self, write=False):
@@ -136,6 +139,19 @@ CREATE TABLE egress (
 ) WITHOUT ROWID;
 """
 
+
+
+GUEST_SCHEMA = """
+CREATE TABLE guest_sessions (
+ hash TEXT PRIMARY KEY, csrf TEXT NOT NULL, terms_version INTEGER NOT NULL, expires REAL NOT NULL
+);
+ALTER TABLE projects ADD COLUMN shared INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE upload_records ADD COLUMN guest_owner TEXT;
+CREATE INDEX guest_uploads_by_owner ON upload_records(guest_owner,created) WHERE guest_owner IS NOT NULL;
+CREATE INDEX guest_uploads_by_ip ON upload_records(ip_hash,created) WHERE guest_owner IS NOT NULL;
+ALTER TABLE login_tokens ADD COLUMN guest_hash TEXT;
+ALTER TABLE oauth_states ADD COLUMN guest_hash TEXT;
+"""
 
 
 def kpi_count(con, fn, *args, **kwargs):

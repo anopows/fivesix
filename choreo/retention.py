@@ -8,6 +8,8 @@ def extend_available(db, seconds, *, apply=False, now=None):
     now = time.time() if now is None else now
     where = "status IN ('creating','uploading','completing','queued','processing','ready') AND expires>? AND created+?>expires"
     with db.connect(write=apply) as con:
+        if con.execute("PRAGMA user_version").fetchone()[0] >= 2:
+            where += " AND owner NOT LIKE 'guest:%'"
         count = con.execute('SELECT COUNT(*) FROM projects WHERE '+where, (now,seconds)).fetchone()[0]
         if apply:
             con.execute('UPDATE projects SET expires=created+? WHERE '+where, (seconds,now,seconds))

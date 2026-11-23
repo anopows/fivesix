@@ -8,6 +8,10 @@ Use the existing host. No Hetzner upgrade is authorized. Keep the 100-account ca
 
 The Google client requests only `openid email`. Google's [audience documentation](https://support.google.com/cloud/answer/15549945?hl=en) explicitly exempts those basic identity scopes from the Testing allowlist restriction. The consent screen can be promoted when console access is available; do not claim it has been promoted until observed. The latest beta validation record distinguishes actual OAuth success from this documented exception.
 
+## Guest uploads
+
+Guest videos are private to the browser that uploaded them and expire after 48 hours. Admission counts reservations, including cancelled uploads, against both the browser and the keyed network address (IPv6 /64). The defaults are one per rolling 24 hours and two per rolling seven days. Account and site capacity limits still apply. A successful email or Google sign-in in the same browser moves unexpired guest videos to the account and extends expiry to the usual 90 days from upload. The owner must select Share to enable a link for a guest-origin video. Existing account links keep working. Keep the operator-owned Terms and Privacy pages in sync with these limits and the essential guest cookie.
+
 ## Daily operation
 
 The operator is responsible for checking the abuse mailbox and admin report list daily. Notification mail can be rate-limited, so an empty inbox does not prove the report list is empty. Aim to review illegal reports within 24 hours and other reports within 72 hours; pause uploads if this cannot be covered. Monitor health alerts, costs, disk free space and queue wait during the first 14 days. The observation period starts at actual beta opening, not at code deployment, and cannot be declared complete in advance.

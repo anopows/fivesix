@@ -85,6 +85,7 @@ class Worker:
             con.execute("DELETE FROM requests WHERE stamp<?", (now-86400,))
             con.execute("DELETE FROM proofs WHERE stamp<?", (now-600,))
             con.execute("DELETE FROM sessions WHERE expires<?", (now,))
+            con.execute("DELETE FROM guest_sessions WHERE expires<=?", (now,))
             con.execute('DELETE FROM login_tokens WHERE expires<?',(now-86400,))
             con.execute('DELETE FROM oauth_states WHERE created<?',(now-600,))
             con.execute('DELETE FROM egress WHERE day<?',((datetime.now(timezone.utc)-timedelta(days=1)).strftime('%Y-%m-%d'),))

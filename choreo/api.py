@@ -28,7 +28,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .legal import LegalPages
 from .config import settings
-from . import config, accounts, quotas
+from . import config, accounts, guests, quotas
 from .limits import EXPORT_QUEUE_LIMIT
 from .db import Database, kpi_count, best_count
 from . import kpi
@@ -84,8 +84,7 @@ class Login(BaseModel):
 class Upload(BaseModel):
     name: str = Field(min_length=1, max_length=180)
     bytes: int = Field(gt=0, le=500_000_000)
-    # Uploads are gated by the signed-in session, quotas and rate limits. The
-    # human check happens once, at unlock. Older clients may still send a token.
+    # Older clients may still send a token with the upload reservation.
     token: str | None = Field(default=None, max_length=2048)
     request_id: str = Field(pattern=r"^[a-f0-9]{32}$")
 
@@ -157,13 +156,15 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
         if request.headers.get("origin") != cfg.origin:
             raise HTTPException(403, "This request came from another site, so it was blocked.")
 
-    def session(request, mutation=False):
+    def session(request, mutation=False, *, allow_guest=False):
         token = request.cookies.get(COOKIE, "")
         with db.connect() as con:
             row = con.execute("SELECT s.*,u.email,u.email_key,u.status AS user_status,u.upload_hold,u.terms_version FROM sessions s LEFT JOIN users u ON u.id=s.user_id WHERE s.hash=? AND s.expires>?", (digest(token),time.time())).fetchone()
-        if not row or not row['email'] or row['user_status']=='banned':
-            if row:
-                with db.connect(write=True) as con:con.execute('DELETE FROM sessions WHERE hash=?',(row['hash'],))
+            if row and row['user_status'] != 'active':
+                raise HTTPException(401, 'Sign in to continue.')
+            if row is None and allow_guest:
+                row = guests.session(con, request)
+        if row is None:
             raise HTTPException(401, "Sign in to continue.")
         if mutation:
             origin(request)
@@ -173,8 +174,11 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
                 raise HTTPException(403,'Accept the updated terms to continue.')
         return row
 
+    def project_session(request, mutation=False):
+        return session(request, mutation, allow_guest=True)
+
     def viewer(request):
-        try:return session(request)
+        try:return project_session(request)
         except HTTPException:return None
 
     def unlocked(user):
@@ -183,7 +187,7 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
     def project(con, pid):
         row = con.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
         if not row or row["expires"] <= time.time() or row["status"] in ("deleted", "expired", "removed", "quarantined"):
-            raise HTTPException(404, f"This video is no longer available. Videos are removed {cfg.retention_seconds // 86400} days after upload.")
+            raise HTTPException(404, "This video is no longer available.")
         return row
 
     def owned_project(con,pid,user):
@@ -193,6 +197,8 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
 
     def public_project(con,pid,user):
         row=project(con,pid)
+        if not row['shared'] and not (user and user['user_id'] == row['owner']) and not unlocked(user):
+            raise HTTPException(404, 'Video not found.')
         if row['hold'] and not unlocked(user):
             raise HTTPException(403,'This video is unavailable while it is being reviewed.')
         return row
@@ -374,14 +380,16 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
     @app.get("/api/bootstrap")
     def bootstrap(request: Request):
         s=viewer(request)
+        guest=bool(s and s['user_id'].startswith(guests.PREFIX))
         with db.connect() as con:
             count=con.execute('SELECT count(*) FROM users').fetchone()[0]
             flag=con.execute("SELECT value FROM flags WHERE key='uploads_paused'").fetchone()
-            day,month=quotas.usage(con,s['user_id'],time.time()) if s else (0,0)
+            day,month=quotas.usage(con,s['user_id'],time.time()) if s and not guest else (0,0)
         user=None
         auth={}
         if s:
             auth={'csrf':s['csrf'],'sessionExpires':s['expires']}
+        if s and not guest:
             user={'email':s['email'],'admin':accounts.is_admin(cfg,s),'adminUnlocked':unlocked(s),
                   'termsRequired':s['terms_version']<config.TERMS_VERSION,'uploadHold':bool(s['upload_hold']),
                   'quota':{'dayUsed':day,'dayLimit':cfg.user_uploads_day,'monthUsed':month,'monthLimit':cfg.user_uploads_month}}
@@ -389,10 +397,24 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
                 'partBytes':cfg.part_bytes,'retentionDays':cfg.retention_seconds//86400,'sessionSeconds':cfg.session_seconds,
                 'termsVersion':config.TERMS_VERSION,'emailSignIn':bool(cfg.smtp_host),'googleSignIn':bool(cfg.google_client_id),
                 'signupsOpen':legal.ready and count<cfg.signup_cap,'uploadsPaused':not flag or flag[0]=='1',
+                'guest':guest,'guestRetentionHours':min(cfg.guest_retention_hours, cfg.retention_seconds//3600),
                 'legalReady':legal.ready,'user':user,**auth}
 
+    @app.post('/api/guest-session')
+    def guest_session(body: accounts.Terms, request: Request, response: Response):
+        origin(request)
+        if not legal.ready:
+            raise HTTPException(503, 'Guest uploads are temporarily unavailable.')
+        if body.terms != config.TERMS_VERSION:
+            raise HTTPException(409, 'Accept the current terms to add a video.')
+        actor = viewer(request)
+        if actor and not actor['user_id'].startswith(guests.PREFIX):
+            raise HTTPException(409, 'You are already signed in. Reload the page.')
+        with db.connect(write=True) as con:
+            return guests.start(con, cfg, request, response, body.terms, rate, ip(request))
+
     from .moderation import install_routes as install_moderation
-    install_moderation(app,cfg,db,store,legal,origin,session,ip,rate,verify)
+    install_moderation(app,cfg,db,store,legal,origin,session,ip,rate,verify,viewer,public_project)
 
     @app.post("/api/logout")
     def logout(request: Request, response: Response):
@@ -404,7 +426,7 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
 
     @app.get("/api/projects")
     def projects(request: Request):
-        user=session(request)
+        user=project_session(request)
         now = time.time()
         with db.connect() as con:
             rows = con.execute("SELECT id,name,status,stage,bytes,created,expires,error,hold,json_extract(analysis,'$.duration') AS duration FROM projects WHERE owner=? AND expires>? AND status NOT IN ('deleted','expired','removed','quarantined') ORDER BY created DESC", (user['user_id'],now,)).fetchall()
@@ -418,7 +440,7 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
 
     @app.post("/api/uploads")
     async def begin(body: Upload, request: Request):
-        user=session(request,True)
+        user=project_session(request,True)
         if Path(body.name).suffix.lower() not in EXTENSIONS or body.bytes>cfg.max_bytes:
             raise HTTPException(400,"This file type isn't supported. Use MP4, MOV, M4V or WebM.")
         now=time.time()
@@ -428,11 +450,15 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
                 if existing:
                     if existing['owner']!=user['user_id']:raise HTTPException(409,'Start the upload again.')
                     return {'id':existing['id'],'status':existing['status']}
+                guest=user['user_id'].startswith(guests.PREFIX)
+                if guest and not legal.ready:
+                    raise HTTPException(503, 'Guest uploads are temporarily unavailable.')
                 quotas.admit(con,cfg,user,ip(request),body.bytes,now)
-                con.execute('INSERT INTO projects(id,name,bytes,created,expires,upload_deadline,status,updated,owner) VALUES (?,?,?,?,?,?,?,?,?)',
-                            (body.request_id,display_name(Path(body.name).name,now),body.bytes,now,now+cfg.retention_seconds,now+cfg.upload_seconds,'creating',now,user['user_id']))
-                con.execute('INSERT INTO upload_records(project,user_id,email,ip_hash,created) VALUES (?,?,?,?,?)',
-                            (body.request_id,user['user_id'],user['email'],ip(request),now))
+                expires=min(now+cfg.guest_retention_hours*3600, user['expires'], now+cfg.retention_seconds) if guest else now+cfg.retention_seconds
+                con.execute('INSERT INTO projects(id,name,bytes,created,expires,upload_deadline,status,updated,owner,shared) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                            (body.request_id,display_name(Path(body.name).name,now),body.bytes,now,expires,now+cfg.upload_seconds,'creating',now,user['user_id'],int(not guest)))
+                con.execute('INSERT INTO upload_records(project,user_id,email,ip_hash,created,guest_owner) VALUES (?,?,?,?,?,?)',
+                            (body.request_id,user['user_id'],user['email'],ip(request),now,user['user_id'] if guest else None))
                 kpi_count(con,kpi.bump,'upload.reserved')
                 kpi_count(con,kpi.bump,'upload.bytes',body.bytes)
             try:upload_id=store.begin(body.request_id)
@@ -456,15 +482,15 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
 
     @app.get("/api/projects/{pid}")
     def status(pid: str, request: Request):
-        user=session(request)
+        user=project_session(request)
         with db.connect() as con:
             row = owned_project(con, pid, user)
             parts = [r[0] for r in con.execute("SELECT number FROM parts WHERE project=? ORDER BY number", (pid,))]
-        return {k: row[k] for k in ("id", "bytes", "status", "stage", "error", "expires", "revision")} | {"name": display_name(row["name"], row["created"]), "parts": parts, "partBytes": cfg.part_bytes, "uploadDeadline": row["upload_deadline"]}
+        return {k: row[k] for k in ("id", "bytes", "status", "stage", "error", "expires", "revision", "hold")} | {"name": display_name(row["name"], row["created"]), "parts": parts, "partBytes": cfg.part_bytes, "uploadDeadline": row["upload_deadline"]}
 
     @app.put("/api/uploads/{pid}/parts/{number}")
     async def part(pid: str, number: int, request: Request):
-        user=session(request, True)
+        user=project_session(request, True)
         with db.connect() as con:
             row = owned_project(con, pid, user)
         if row["status"] != "uploading" or row["upload_deadline"] <= time.time():
@@ -500,7 +526,7 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
 
     @app.post("/api/uploads/{pid}/complete")
     def complete(pid: str, request: Request):
-        user=session(request, True)
+        user=project_session(request, True)
         with db.connect(write=True) as con:
             row = owned_project(con, pid, user)
             if row["status"] in ("queued", "processing", "ready"):
@@ -531,7 +557,7 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
 
     @app.delete("/api/projects/{pid}")
     def remove(pid: str, request: Request):
-        user=session(request, True)
+        user=project_session(request, True)
         with db.connect(write=True) as con:
             owned_project(con, pid, user)
             con.execute("UPDATE projects SET status='deleted',cleanup_done=0,updated=? WHERE id=?", (time.time(), pid))
@@ -541,7 +567,7 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
 
     @app.patch("/api/projects/{pid}")
     def rename(pid: str, body: Rename, request: Request):
-        user=session(request, True)
+        user=project_session(request, True)
         name = " ".join(body.name.split())
         if not name or any(ord(ch) < 32 for ch in name):
             raise HTTPException(400, "Give the video a name.")
@@ -552,8 +578,6 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
 
     @app.get("/api/projects/{pid}/practice")
     def practice(pid: str, request: Request, refresh: bool = False):
-        # The unlisted, random 128-bit project URL grants access to this video.
-        # Library enumeration, uploads, deletion and shared edits stay private.
         visitor=viewer(request)
         with db.connect() as con:
             row = public_project(con, pid, visitor)
@@ -573,14 +597,24 @@ def create_app(cfg=None, storage=None, verifier=None, testing=False, mailer=None
         if slow.get("engine") == SLOW_ENGINE:
             speed_media = {rate: store.url(f"projects/{pid}/{filename}", ttl)
                            for rate, filename in SLOW_MEDIA.items() if rate in slow.get("rates", [])}
-        return {"owner": bool(visitor and visitor["user_id"] == row["owner"]), "speedMedia": speed_media, "analysis": analysis, "alignment": json.loads(row["alignment"]),
+        return {"shared": bool(row["shared"]), "owner": bool(visitor and visitor["user_id"] == row["owner"]), "speedMedia": speed_media, "analysis": analysis, "alignment": json.loads(row["alignment"]),
             "revision": row["revision"], "name": display_name(row["name"], row["created"]), "expires": row["expires"],
             "videoUrl": media["mix"], "mediaUrls": media,
             "posterUrl": store.url(f"projects/{pid}/poster.jpg", ttl), "urlExpires": time.time()+ttl}
 
+    @app.post("/api/projects/{pid}/share")
+    def share(pid: str, request: Request):
+        user = session(request, True)
+        with db.connect(write=True) as con:
+            row = owned_project(con, pid, user)
+            if row['status'] != 'ready' or row['hold']:
+                raise HTTPException(409, 'This video is unavailable for sharing.')
+            con.execute('UPDATE projects SET shared=1 WHERE id=?', (pid,))
+        return {'shared': True}
+
     @app.put("/api/projects/{pid}/alignment")
     def alignment(pid: str, body: Alignment, request: Request):
-        user=session(request, True)
+        user=project_session(request, True)
         with db.connect(write=True) as con:
             row = owned_project(con, pid, user)
             if row["status"] != "ready":

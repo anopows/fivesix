@@ -118,7 +118,7 @@ class Moderation:
             audit(con,actor,'release_quarantine',pid,'restore' if restore else 'delete')
 
 
-def install_routes(app,cfg,db,store,legal,origin,session,ip,rate,verify):
+def install_routes(app,cfg,db,store,legal,origin,session,ip,rate,verify,viewer,public_project):
     moderation=Moderation(cfg,db,app.state.mail,legal);app.state.moderation=moderation
     def admin(request,mutation=False):
         try:user=session(request,mutation)
@@ -141,10 +141,13 @@ def install_routes(app,cfg,db,store,legal,origin,session,ip,rate,verify):
             except ValueError as exc:raise HTTPException(400,str(exc))
         elif body.reason in ('copyright','privacy'):raise HTTPException(400,'Your email address is required for this report.')
         await verify(body.token,'report')
+        visitor=viewer(request)
         rid=secrets.token_hex(16)
         with db.connect(write=True) as con:
             p=con.execute("SELECT * FROM projects WHERE id=? AND status='ready' AND expires>?",(pid,time.time())).fetchone()
             if not p:raise HTTPException(404,'Video not found.')
+            if not p['shared']:
+                public_project(con,pid,visitor)
             con.execute('INSERT INTO reports(id,project,reason,details,contact,ip_hash,created) VALUES (?,?,?,?,?,?,?)',(rid,pid,body.reason,body.details,contact or None,ip(request),time.time()))
             if body.reason=='illegal' and not p['hold']:
                 con.execute('UPDATE projects SET hold=1 WHERE id=?',(pid,))

@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from . import config, kpi
+from . import config, guests, kpi
 from .db import kpi_count, best_count
 from .mail import Mailer
 
@@ -187,7 +187,7 @@ def install_routes(app,cfg,db,legal,origin,session,ip,rate,verify,*,mailer=None,
             rate(con,'email:key:d:'+hashed,6,86400,now,message)
             rate(con,'email:global',cfg.email_daily_cap,86400,now,message)
 
-    async def send_link(email,email_key,terms,google_sub=None):
+    async def send_link(email,email_key,terms,guest_hash,google_sub=None):
         now=time.time()
         token=secrets.token_urlsafe(32)
         with db.connect(write=True) as con:
@@ -195,8 +195,8 @@ def install_routes(app,cfg,db,legal,origin,session,ip,rate,verify,*,mailer=None,
             existing=con.execute('SELECT 1 FROM users WHERE email_key=?',(email_key,)).fetchone()
             if banned or (not existing and (not legal.ready or con.execute('SELECT count(*) FROM users').fetchone()[0]>=cfg.signup_cap)):
                 return
-            con.execute('INSERT INTO login_tokens(hash,email,email_key,terms,created,expires,google_sub) VALUES (?,?,?,?,?,?,?)',
-                        (digest(token),email,email_key,terms,now,now+TOKEN_SECONDS,google_sub))
+            con.execute('INSERT INTO login_tokens(hash,email,email_key,terms,created,expires,google_sub,guest_hash) VALUES (?,?,?,?,?,?,?,?)',
+                        (digest(token),email,email_key,terms,now,now+TOKEN_SECONDS,google_sub,guest_hash))
             kpi_count(con,kpi.bump,'signin.email.requested')
         try:
             await run_in_threadpool(mail.signin,email,token)
@@ -216,7 +216,7 @@ def install_routes(app,cfg,db,legal,origin,session,ip,rate,verify,*,mailer=None,
             raise HTTPException(400,str(exc))
         email_limits(key,request)
         await verify(body.token,'signin')
-        await send_link(email,key,body.terms)
+        await send_link(email,key,body.terms,guests.cookie_hash(request))
         return {'ok':True}
 
     @app.get('/auth/email')
@@ -230,9 +230,12 @@ def install_routes(app,cfg,db,legal,origin,session,ip,rate,verify,*,mailer=None,
         with db.connect(write=True) as con:
             row=con.execute('SELECT * FROM login_tokens WHERE hash=? AND used IS NULL AND expires>?',(digest(body.token),time.time())).fetchone()
             if row:
+                if row['guest_hash'] and row['guest_hash'] != guests.cookie_hash(request):
+                    raise HTTPException(409, 'Open this link in the browser where you started sign-in to keep your guest videos.')
                 con.execute('UPDATE login_tokens SET used=? WHERE hash=?',(time.time(),row['hash']))
                 user,refusal=resolve_account(con,cfg,legal,row['email'],row['email_key'],row['google_sub'],row['terms'])
                 if not refusal:
+                    claimed=guests.claim(con,cfg,request,row['guest_hash'],user)
                     token,csrf=create_session(con,cfg,user['id'])
                     kpi_count(con,kpi.bump,'signin.email.ok')
                     kpi_count(con,kpi.bump,'login.ok')
@@ -243,6 +246,7 @@ def install_routes(app,cfg,db,legal,origin,session,ip,rate,verify,*,mailer=None,
             if refusal=='terms':raise HTTPException(409,'The terms changed. Ask for a new sign-in link.')
             raise HTTPException(403,"five·six isn't taking new sign-ups right now.")
         set_session(response,cfg,token)
+        if claimed:response.delete_cookie(guests.COOKIE,path='/',secure=cfg.cookie_secure,httponly=True,samesite='lax')
         return {'csrf':csrf}
 
     @app.get('/auth/google/start')
@@ -254,7 +258,7 @@ def install_routes(app,cfg,db,legal,origin,session,ip,rate,verify,*,mailer=None,
         with db.connect(write=True) as con:
             rate(con,'gstart:'+ip(request),20,3600,now)
             con.execute('DELETE FROM oauth_states WHERE created<?',(now-OAUTH_SECONDS,))
-            con.execute('INSERT INTO oauth_states VALUES (?,?,?,?,?)',(digest(state),nonce,verifier,terms,now))
+            con.execute('INSERT INTO oauth_states(hash,nonce,verifier,terms,created,guest_hash) VALUES (?,?,?,?,?,?)',(digest(state),nonce,verifier,terms,now,guests.cookie_hash(request)))
         url='https://accounts.google.com/o/oauth2/v2/auth?'+urlencode({
             'client_id':cfg.google_client_id,'redirect_uri':cfg.origin+'/auth/google/callback',
             'response_type':'code','scope':'openid email','state':state,'nonce':nonce,
@@ -297,16 +301,20 @@ def install_routes(app,cfg,db,legal,origin,session,ip,rate,verify,*,mailer=None,
             if not cfg.smtp_host:return google_return('failed')
             try:
                 email_limits(key,request)
-                await send_link(email,key,row['terms'],claims['sub'])
+                await send_link(email,key,row['terms'],row['guest_hash'],claims['sub'])
             except HTTPException:return google_return('unavailable')
             return google_return('verify_email')
         with db.connect(write=True) as con:
             user,refusal=resolve_account(con,cfg,legal,email,key,claims['sub'],row['terms'])
             if not refusal:
+                claimed=guests.claim(con,cfg,request,row['guest_hash'],user)
                 token,_=create_session(con,cfg,user['id'])
                 kpi_count(con,kpi.bump,'signin.google.ok')
                 kpi_count(con,kpi.bump,'login.ok')
-        return google_return({'banned':'failed'}.get(refusal,refusal)) if refusal else google_return(token=token)
+        if refusal:return google_return({'banned':'failed'}.get(refusal,refusal))
+        response=google_return(token=token)
+        if claimed:response.delete_cookie(guests.COOKIE,path='/',secure=cfg.cookie_secure,httponly=True,samesite='lax')
+        return response
 
     @app.post('/api/account/terms')
     def accept_terms(body:Terms,request:Request):

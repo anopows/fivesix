@@ -2,7 +2,7 @@ import concurrent.futures, re, time, uuid
 from urllib.parse import urlparse,parse_qs
 import pytest
 from fastapi.testclient import TestClient
-from test_service import room,unlock,ready,begin
+from test_service import room,unlock,ready,begin,start_guest,open_uploads
 from choreo.accounts import normalize_email,create_session,digest,resolve_account,valid_claims
 from choreo.db import Database
 from choreo.config import Settings
@@ -125,6 +125,9 @@ def test_google_callback_flow_with_provider_standin(room,failure):
     from choreo.api import create_app
     app=create_app(cfg,store,testing=True,google=Provider(),mailer=c.messages.append)
     c=TestClient(app,base_url=cfg.origin);c.headers['Origin']=cfg.origin
+    open_uploads(app)
+    start_guest(c)
+    pid=ready(c,app)
     start=c.get('/auth/google/start?terms=1',follow_redirects=False);assert start.status_code==302
     state=parse_qs(urlparse(start.headers['location']).query)['state'][0]
     with app.state.db.connect() as db:captured.update(dict(db.execute('SELECT * FROM oauth_states').fetchone()))
@@ -135,6 +138,8 @@ def test_google_callback_flow_with_provider_standin(room,failure):
     if failure=='none':
         assert response.headers['location']=='/'
         assert c.get('/api/bootstrap').json()['user']['email']=='new@gmail.com'
+        assert c.get('/api/projects').json()['projects'][0]['id']==pid
+        assert not c.get(f'/api/projects/{pid}/practice').json()['shared']
     else:assert response.headers['location']=='/?signin='+('expired' if failure in ('state','cookie') else 'failed')
     assert c.get('/auth/google/callback',params={'state':state,'code':'code'},follow_redirects=False).headers['location']=='/?signin=expired'
 

@@ -1,6 +1,6 @@
 # Self-host five·six
 
-This multi-user service uses Ubuntu and private Cloudflare R2 storage. Uploaders sign in by verified email or Google; each library belongs to its account. Share-link visitors need no account. The admin password is an additional check after account sign-in.
+This multi-user service uses Ubuntu and private Cloudflare R2 storage. Guests can practise privately. Verified email or Google sign-in moves their clips to an account and enables sharing. Share-link visitors need no account. The admin password is an additional check after account sign-in.
 
 ## Requirements
 
@@ -90,7 +90,7 @@ sudo .venv/bin/python scripts/configure-runtime.py /root/r2-credentials.json --a
 
 Create a root-only account-config JSON with admin_email, abuse_email and SMTP/Google settings from deploy/.env.example. Enter the admin step-up password at the hidden prompt. The script hashes it with
 Argon2id and writes validated settings to root-only `/etc/choreo.env`.
-Retention is `CHOREO_RETENTION_SECONDS=7776000` (90 days).
+Account retention is `CHOREO_RETENTION_SECONDS=7776000` (90 days). Guest defaults are `CHOREO_GUEST_RETENTION_HOURS=48`, `CHOREO_GUEST_UPLOADS_DAY=1` and `CHOREO_GUEST_UPLOADS_WEEK=2`.
 `deploy/.env.example` documents required variables.
 
 After success, revoke the temporary provisioning token. Remove its file, the
